@@ -8,6 +8,7 @@ import { fieldTypes, type PromptField } from "@/domain/prompts/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { AdaptiveSelect, SearchableMultiSelect } from "@/components/ui/searchable-select"
 
 type InitialTemplate = {
   id?: string
@@ -39,6 +40,27 @@ const parseOptions = (value: string) => value
     const [label, ...rest] = line.split("=")
     return { label: label.trim(), value: (rest.join("=") || label).trim() }
   })
+
+function MappingSourceValuePicker({
+  label,
+  options,
+  values,
+  onChange,
+}: {
+  label: string
+  options: NonNullable<PromptField["options"]>
+  values: string[]
+  onChange: (values: string[]) => void
+}) {
+  return <SearchableMultiSelect
+    options={options.map((option) => ({ ...option, meta: option.label === option.value ? undefined : option.value }))}
+    values={values.map((value) => value.trim()).filter(Boolean)}
+    onValuesChange={onChange}
+    placeholder="请选择匹配选项"
+    searchPlaceholder="搜索匹配选项"
+    ariaLabel={label}
+  />
+}
 
 export function TemplateEditor({ initial, categories }: { initial: InitialTemplate; categories: Array<{ id: string; name: string }> }) {
   const router = useRouter()
@@ -167,7 +189,7 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="field-label" htmlFor="name">模板名称 *</label><input id="name" className="control" value={template.name} onChange={(e) => setTemplate({ ...template, name: e.target.value })} placeholder="例如：代码审查" /></div>
           <div><label className="field-label" htmlFor="slug">模板标识 *</label><input id="slug" className="control mono" value={template.slug} onChange={(e) => setTemplate({ ...template, slug: e.target.value.toLowerCase() })} placeholder="code-review" /></div>
-          <div><label className="field-label" htmlFor="category">模板分类</label><select id="category" className="control" value={template.categoryId ?? ""} onChange={(e) => setTemplate({ ...template, categoryId: e.target.value || null })}><option value="">未分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+          <div><label className="field-label" htmlFor="category">模板分类</label><AdaptiveSelect id="category" options={categories.map((category) => ({ value: category.id, label: category.name }))} value={template.categoryId ?? ""} onValueChange={(value) => setTemplate({ ...template, categoryId: value || null })} placeholder="未分类" searchPlaceholder="搜索模板分类" ariaLabel="模板分类" /></div>
           <div className="sm:col-span-2"><label className="field-label" htmlFor="description">模板说明</label><textarea id="description" className="control min-h-20" value={template.description} onChange={(e) => setTemplate({ ...template, description: e.target.value })} placeholder="说明这个模板适合解决什么问题" /></div>
         </div>
         <label className="mt-4 flex cursor-pointer items-center gap-3 text-sm"><input type="checkbox" checked={template.enabled} onChange={(e) => setTemplate({ ...template, enabled: e.target.checked })} className="size-4 accent-[var(--accent)]" /><span><strong className="font-semibold">启用模板</strong><span className="ml-2 text-[var(--foreground-muted)]">停用后不会出现在生成页</span></span></label>
@@ -179,6 +201,8 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
           const open = expanded === field.id
           const mapping = field.mapping ?? { sourceFieldKey: "", rules: [{ sourceValues: [""], output: "" }] }
           const mappingSources = sortedFields.filter((item) => item.id !== field.id && ["text", "select", "radio"].includes(item.type))
+          const mappingSource = mappingSources.find((item) => item.key === mapping.sourceFieldKey)
+          const mappingSourceOptions = ["select", "radio"].includes(mappingSource?.type ?? "") ? mappingSource?.options ?? [] : []
           return <div key={field.id}>
             <div className="flex min-h-16 items-center gap-2 px-3 py-3 sm:px-5">
               <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setExpanded(open ? null : field.id)} aria-expanded={open}>
@@ -207,21 +231,23 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
                   <div className="rounded-xl bg-[var(--accent-soft)] px-4 py-3 text-xs leading-5 text-[var(--foreground-secondary)]"><strong className="text-[var(--foreground)]">这个字段由系统自动生成</strong><br />生成页面不会要求用户填写，只需配置下面的对应关系。</div>
                   <div>
                     <label className="field-label">根据哪个输入字段判断</label>
-                    <select className="control" value={mapping.sourceFieldKey} onChange={(event) => updateField(field.id, { mapping: { ...mapping, sourceFieldKey: event.target.value } })}>
-                      <option value="">请选择来源字段</option>
-                      {mappingSources.map((source) => <option key={source.id} value={source.key}>{source.label}</option>)}
-                    </select>
+                    <AdaptiveSelect options={mappingSources.map((source) => ({ value: source.key, label: source.label, meta: source.key }))} value={mapping.sourceFieldKey} onValueChange={(value) => updateField(field.id, { mapping: { ...mapping, sourceFieldKey: value } })} placeholder="请选择来源字段" searchPlaceholder="搜索来源字段" ariaLabel={`${field.label}的来源字段`} />
                     {!mappingSources.length && <p className="field-help">请先添加一个单行文本、下拉选择或单选字段。</p>}
                   </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-3"><label className="field-label mb-0">输入与输出的对应关系</label><Button size="sm" variant="secondary" onClick={() => updateField(field.id, { mapping: { ...mapping, rules: [...mapping.rules, { sourceValues: [""], output: "" }] } })}><Plus className="size-3.5" />添加一行</Button></div>
-                    <div className="space-y-2">{mapping.rules.map((rule, ruleIndex) => <div key={ruleIndex} className="grid items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
-                      <input className="control" aria-label={`第 ${ruleIndex + 1} 行需要匹配的内容`} value={rule.sourceValues.join(",")} onChange={(event) => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.map((item, index) => index === ruleIndex ? { ...item, sourceValues: event.target.value.split(/[,，]/) } : item) } })} placeholder="例如：nine, poppay" />
-                      <ArrowRight className="mx-auto size-4 text-[var(--foreground-muted)]" />
-                      <input className="control" aria-label={`第 ${ruleIndex + 1} 行自动输出的内容`} value={rule.output} onChange={(event) => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.map((item, index) => index === ruleIndex ? { ...item, output: event.target.value } : item) } })} placeholder="例如：uat" />
+                    <div className="space-y-2">{mapping.rules.map((rule, ruleIndex) => <div key={ruleIndex} className="grid items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
+                      {mappingSourceOptions.length ? <MappingSourceValuePicker
+                        label={`第 ${ruleIndex + 1} 行需要匹配的内容`}
+                        options={mappingSourceOptions}
+                        values={rule.sourceValues}
+                        onChange={(sourceValues) => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.map((item, index) => index === ruleIndex ? { ...item, sourceValues } : item) } })}
+                      /> : <input className="control" aria-label={`第 ${ruleIndex + 1} 行需要匹配的内容`} value={rule.sourceValues.join(",")} onChange={(event) => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.map((item, index) => index === ruleIndex ? { ...item, sourceValues: event.target.value.split(/[,，]/) } : item) } })} placeholder="例如：nine, poppay" />}
+                      <ArrowRight className="mx-auto mt-3 size-4 text-[var(--foreground-muted)]" />
+                      <textarea className="control min-h-20" rows={3} aria-label={`第 ${ruleIndex + 1} 行自动输出的内容`} value={rule.output} onChange={(event) => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.map((item, index) => index === ruleIndex ? { ...item, output: event.target.value } : item) } })} placeholder="例如：uat，或多行服务专属内容" />
                       <Button size="icon" variant="ghost" disabled={mapping.rules.length === 1} onClick={() => updateField(field.id, { mapping: { ...mapping, rules: mapping.rules.filter((_, index) => index !== ruleIndex) } })} aria-label={`删除第 ${ruleIndex + 1} 行映射`}><Trash2 className="size-4" /></Button>
                     </div>)}</div>
-                    <p className="field-help">多个输入得到同一个结果时，用逗号隔开；匹配时忽略大小写和首尾空格。</p>
+                    <p className="field-help">多个输入得到同一个结果时，用逗号隔开；输出支持多行内容；匹配时忽略大小写和首尾空格。</p>
                   </div>
                   <div><label className="field-label">没有匹配时使用（可选）</label><input className="control" value={mapping.fallback ?? ""} onChange={(event) => updateField(field.id, { mapping: { ...mapping, fallback: event.target.value } })} placeholder="建议留空：生成时直接提示缺少映射" /><p className="field-help">留空最安全，可以防止系统使用错误结果。</p></div>
                 </div>}
@@ -242,9 +268,7 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-60 flex-1">
                 <label className="field-label" htmlFor="insert-template-field">插入动态字段</label>
-                <select id="insert-template-field" className="control mono" value={insertField?.id ?? ""} onChange={(event) => setInsertFieldId(event.target.value)} disabled={!insertField}>
-                  {insertField ? insertableFields.map((field) => <option key={field.id} value={field.id}>{`${field.label}（{{${field.key}}}）`}</option>) : <option value="">暂无可用变量</option>}
-                </select>
+                <AdaptiveSelect id="insert-template-field" className="mono" options={insertableFields.map((field) => ({ value: field.id, label: field.label, meta: `{{${field.key}}}`, keywords: field.key }))} value={insertField?.id ?? ""} onValueChange={setInsertFieldId} disabled={!insertField} clearable={false} placeholder="暂无可用变量" searchPlaceholder="搜索字段名称或 Key" ariaLabel="插入动态字段" />
               </div>
               <Button size="sm" variant="secondary" onClick={() => insertField && insertVariable(insertField.key)} disabled={!insertField}><Variable className="size-3.5" />插入变量</Button>
               <Button size="sm" variant="secondary" onClick={() => insertField && insertVariable(insertField.key, true)} disabled={!insertField}><Braces className="size-3.5" />插入条件块</Button>
