@@ -31,31 +31,12 @@ export const promptTemplates = sqliteTable("prompt_templates", {
   index("templates_enabled_idx").on(table.enabled),
 ])
 
-export const promptRules = sqliteTable("prompt_rules", {
-  id: text("id").primaryKey(),
-  templateId: text("template_id").notNull().references(() => promptTemplates.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description").notNull().default(""),
-  conditionTree: text("condition_tree").notNull(),
-  priority: integer("priority").notNull().default(0),
-  customContent: text("custom_content").notNull(),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
-  ...timestamps,
-}, (table) => [
-  index("rules_template_idx").on(table.templateId),
-  index("rules_enabled_idx").on(table.enabled),
-  index("rules_priority_idx").on(table.priority),
-])
-
 export const promptGenerations = sqliteTable("prompt_generations", {
   id: text("id").primaryKey(),
   templateId: text("template_id").references(() => promptTemplates.id, { onDelete: "set null" }),
-  matchedRuleId: text("matched_rule_id").references(() => promptRules.id, { onDelete: "set null" }),
   templateName: text("template_name").notNull(),
-  matchedRuleName: text("matched_rule_name"),
   inputData: text("input_data").notNull(),
   generatedContent: text("generated_content").notNull(),
-  source: text("source", { enum: ["custom-rule", "default-template"] }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (table) => [
   index("generations_template_idx").on(table.templateId),

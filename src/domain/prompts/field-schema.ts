@@ -6,6 +6,15 @@ const optionSchema = z.object({
   value: z.string().trim().min(1, "选项值不能为空"),
 })
 
+const mappingSchema = z.object({
+  sourceFieldKey: z.string(),
+  rules: z.array(z.object({
+    sourceValues: z.array(z.string()),
+    output: z.string(),
+  })),
+  fallback: z.string().optional(),
+})
+
 export const promptFieldSchema = z.object({
   id: z.string().min(1),
   key: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/, "字段 Key 必须以字母开头，且只能包含字母、数字和下划线"),
@@ -25,9 +34,9 @@ export const promptFieldSchema = z.object({
       pattern: z.string().optional(),
     })
     .optional(),
+  mapping: mappingSchema.optional(),
   sortOrder: z.number().int(),
   width: z.enum(["full", "half"]),
-  matchable: z.boolean(),
   includeInPrompt: z.boolean(),
   storeInHistory: z.boolean(),
   sensitive: z.boolean(),
@@ -53,6 +62,38 @@ export const promptFieldsSchema = z
           code: "custom",
           message: "该字段类型至少需要一个选项",
           path: [index, "options"],
+        })
+      }
+      if (field.type === "mapping") {
+        if (!field.mapping) {
+          ctx.addIssue({ code: "custom", message: "请配置自动映射关系", path: [index, "mapping"] })
+          return
+        }
+        const sourceField = fields.find((item) => item.key === field.mapping?.sourceFieldKey)
+        if (!sourceField) {
+          ctx.addIssue({ code: "custom", message: "请选择自动映射的来源字段", path: [index, "mapping", "sourceFieldKey"] })
+        } else if (!["text", "select", "radio"].includes(sourceField.type)) {
+          ctx.addIssue({ code: "custom", message: "自动映射只能根据单行文本、下拉选择或单选字段判断", path: [index, "mapping", "sourceFieldKey"] })
+        }
+        if (!field.mapping.rules.length) {
+          ctx.addIssue({ code: "custom", message: "请至少添加一条映射关系", path: [index, "mapping", "rules"] })
+        }
+        const mappedValues = new Set<string>()
+        field.mapping.rules.forEach((rule, ruleIndex) => {
+          const sourceValues = rule.sourceValues.map((value) => value.trim()).filter(Boolean)
+          if (!sourceValues.length) {
+            ctx.addIssue({ code: "custom", message: "请输入需要匹配的内容", path: [index, "mapping", "rules", ruleIndex, "sourceValues"] })
+          }
+          if (!rule.output.trim()) {
+            ctx.addIssue({ code: "custom", message: "请输入自动输出的内容", path: [index, "mapping", "rules", ruleIndex, "output"] })
+          }
+          sourceValues.forEach((value) => {
+            const normalized = value.toLocaleLowerCase()
+            if (mappedValues.has(normalized)) {
+              ctx.addIssue({ code: "custom", message: `“${value}”配置了多次`, path: [index, "mapping", "rules", ruleIndex, "sourceValues"] })
+            }
+            mappedValues.add(normalized)
+          })
         })
       }
     })
@@ -90,7 +131,9 @@ function textSchema(field: PromptField) {
 export function buildFieldValuesSchema(fields: PromptField[]) {
   const shape: Record<string, z.ZodType> = {}
   for (const field of fields) {
-    if (field.type === "number") {
+    if (field.type === "mapping") {
+      continue
+    } else if (field.type === "number") {
       let numberSchema = z.preprocess(
         (value) => value === "" || value === null || value === undefined ? undefined : Number(value),
         z.number({ error: `${field.label}必须是数字` }).finite().optional(),
@@ -114,6 +157,24 @@ export function buildFieldValuesSchema(fields: PromptField[]) {
     }
   }
   return z.object(shape)
+}
+
+export function resolveMappedFieldValues(fields: PromptField[], input: Record<string, unknown>) {
+  const values = { ...input }
+  const fieldNames = new Map(fields.map((field) => [field.key, field.label]))
+  for (const field of fields.filter((item) => item.type === "mapping")) {
+    if (!field.mapping) continue
+    const sourceValue = String(values[field.mapping.sourceFieldKey] ?? "").trim()
+    const normalizedSource = sourceValue.toLocaleLowerCase()
+    const rule = field.mapping.rules.find((item) => item.sourceValues.some((value) => value.trim().toLocaleLowerCase() === normalizedSource))
+    const output = rule?.output.trim() || field.mapping.fallback?.trim() || ""
+    if (!output && field.required) {
+      const sourceLabel = fieldNames.get(field.mapping.sourceFieldKey) ?? field.mapping.sourceFieldKey
+      throw new Error(`“${sourceLabel}”填写了“${sourceValue || "空值"}”，但“${field.label}”没有对应结果，请补充模板映射`)
+    }
+    values[field.key] = output
+  }
+  return values
 }
 
 export function parseFields(value: string): PromptField[] {

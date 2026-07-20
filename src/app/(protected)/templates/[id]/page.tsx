@@ -10,5 +10,5 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   const template = getTemplate(id)
   if (!template) notFound()
   const categories = listCategories().map(({ id: categoryId, name }) => ({ id: categoryId, name }))
-  return <div className="page-wrap"><header className="page-header"><div><h1 className="page-title">编辑模板</h1><p className="page-description">调整字段、变量和通用内容。保存前会检查全部规则引用。</p></div></header><TemplateEditor categories={categories} initial={{ id: template.id, categoryId: template.categoryId, name: template.name, slug: template.slug, description: template.description, content: template.content, enabled: template.enabled, fields: template.fields }} /></div>
+  return <div className="page-wrap"><header className="page-header"><div><h1 className="page-title">编辑模板</h1><p className="page-description">集中调整动态字段、变量和提示词内容。</p></div></header><TemplateEditor categories={categories} initial={{ id: template.id, categoryId: template.categoryId, name: template.name, slug: template.slug, description: template.description, content: template.content, enabled: template.enabled, fields: template.fields }} /></div>
 }

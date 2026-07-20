@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpenText, Clock3, FileText, LogOut, Menu, Plus, ScrollText, Sparkles, X } from "lucide-react"
+import { BookOpenText, Clock3, FileText, LogOut, Menu, Plus, Sparkles, X } from "lucide-react"
 import { logoutAction } from "@/actions/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 const navigation = [
   { href: "/", label: "生成提示词", icon: Sparkles },
   { href: "/templates", label: "模板", icon: FileText },
-  { href: "/rules", label: "定制规则", icon: ScrollText },
   { href: "/history", label: "生成历史", icon: Clock3 },
 ]
 

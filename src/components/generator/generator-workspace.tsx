@@ -18,7 +18,7 @@ type TemplateOption = {
 }
 
 function defaults(fields: PromptField[]) {
-  return Object.fromEntries(fields.map((field) => {
+  return Object.fromEntries(fields.filter((field) => field.type !== "mapping").map((field) => {
     if (field.defaultValue !== undefined) return [field.key, field.defaultValue]
     if (field.type === "checkbox" || field.type === "switch") return [field.key, false]
     if (field.type === "multi-select") return [field.key, []]
@@ -74,7 +74,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
 
   const groups = useMemo(() => {
     const map = new Map<string, PromptField[]>()
-    for (const field of template?.fields ?? []) {
+    for (const field of template?.fields.filter((item) => item.type !== "mapping") ?? []) {
       const key = field.group || "填写信息"
       map.set(key, [...(map.get(key) ?? []), field])
     }
@@ -134,7 +134,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
           {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
         <p className="mb-0 mt-3 text-sm leading-6 text-[var(--foreground-secondary)]">{template.description}</p>
-        <div className="mt-3"><Badge>{template.fields.length} 个动态字段</Badge></div>
+        <div className="mt-3"><Badge>{template.fields.filter((field) => field.type !== "mapping").length} 个输入字段</Badge></div>
       </div>
       <form onSubmit={submit}>
         <AnimatePresence mode="wait" initial={false}>
@@ -163,12 +163,8 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
         <Button variant="secondary" size="sm" onClick={copy} disabled={!result}>{copied ? <Check className="size-3.5 text-[var(--success)]" /> : <Clipboard className="size-3.5" />}{copied ? "已复制" : "复制"}</Button>
       </div>
       {result ? <>
-        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
-          <Badge tone={result.source === "custom-rule" ? "accent" : "neutral"}>{result.source === "custom-rule" ? "定制规则" : "通用模板"}</Badge>
-          {result.matchedRuleName && <span className="text-xs text-[var(--foreground-secondary)]">命中：{result.matchedRuleName}</span>}
-        </div>
         <motion.pre initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="prompt-output m-0 flex-1">{result.content}</motion.pre>
-      </> : <EmptyState icon={Sparkles} title="结果会显示在这里" description="选择模板并填写必要信息，生成后可查看来源、命中规则并一键复制。" />}
+      </> : <EmptyState icon={Sparkles} title="结果会显示在这里" description="选择模板并填写必要信息，生成后可一键复制完整提示词。" />}
     </section>
   </div>
 }
