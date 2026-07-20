@@ -11,6 +11,7 @@ export const fieldTypes = [
   "url",
   "json",
   "markdown",
+  "mapping",
 ] as const
 
 export type PromptFieldType = (typeof fieldTypes)[number]
@@ -28,6 +29,17 @@ export type PromptFieldValidation = {
   pattern?: string
 }
 
+export type PromptFieldMappingRule = {
+  sourceValues: string[]
+  output: string
+}
+
+export type PromptFieldMapping = {
+  sourceFieldKey: string
+  rules: PromptFieldMappingRule[]
+  fallback?: string
+}
+
 export type PromptField = {
   id: string
   key: string
@@ -39,9 +51,9 @@ export type PromptField = {
   defaultValue?: unknown
   options?: PromptFieldOption[]
   validation?: PromptFieldValidation
+  mapping?: PromptFieldMapping
   sortOrder: number
   width: "full" | "half"
-  matchable: boolean
   includeInPrompt: boolean
   storeInHistory: boolean
   sensitive: boolean
@@ -49,69 +61,10 @@ export type PromptField = {
   advanced?: boolean
 }
 
-export const ruleOperators = [
-  "equals",
-  "notEquals",
-  "contains",
-  "notContains",
-  "startsWith",
-  "endsWith",
-  "in",
-  "notIn",
-  "exists",
-  "notExists",
-  "greaterThan",
-  "greaterThanOrEqual",
-  "lessThan",
-  "lessThanOrEqual",
-] as const
-
-export type RuleOperator = (typeof ruleOperators)[number]
-
-export type RuleCondition = {
-  id: string
-  kind: "condition"
-  fieldKey: string
-  operator: RuleOperator
-  value?: unknown
-  caseSensitive?: boolean
-}
-
-export type RuleConditionGroup = {
-  id: string
-  kind: "group"
-  combinator: "all" | "any"
-  children: Array<RuleCondition | RuleConditionGroup>
-}
-
-export type ConditionEvaluation = {
-  conditionId: string
-  fieldKey: string
-  operator: RuleOperator
-  expectedValue?: unknown
-  actualValue?: unknown
-  matched: boolean
-  reason: string
-}
-
-export type RuleEvaluation = {
-  ruleId: string
-  ruleName: string
-  matched: boolean
-  priority: number
-  referencedFieldCount: number
-  specificity: number
-  conditionResults: ConditionEvaluation[]
-}
-
 export type PromptGenerationResult = {
   content: string
   templateId: string
   templateName: string
-  source: "custom-rule" | "default-template"
-  matchedRuleId?: string
-  matchedRuleName?: string
-  ruleEvaluations: RuleEvaluation[]
 }
 
 export type TemplateRecord = {
@@ -122,19 +75,6 @@ export type TemplateRecord = {
   description: string
   content: string
   fields: PromptField[]
-  enabled: boolean
-  createdAt: Date
-  updatedAt: Date
-}
-
-export type RuleRecord = {
-  id: string
-  templateId: string
-  name: string
-  description: string
-  conditionTree: RuleConditionGroup
-  priority: number
-  customContent: string
   enabled: boolean
   createdAt: Date
   updatedAt: Date

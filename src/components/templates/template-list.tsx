@@ -17,7 +17,6 @@ type TemplateItem = {
   description: string
   enabled: boolean
   fieldCount: number
-  ruleCount: number
   updatedAt: string
   categoryId: string | null
   categoryName: string
@@ -50,13 +49,13 @@ export function TemplateList({ templates, categories }: { templates: TemplateIte
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><h2 className="m-0 truncate text-[15px] font-semibold">{template.name}</h2><Badge tone={template.enabled ? "success" : "neutral"}>{template.enabled ? "已启用" : "已停用"}</Badge></div>
           <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-[var(--foreground-secondary)]">{template.description || "暂无说明"}</p>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--foreground-muted)]"><span>{template.categoryName}</span><span className="mono">{template.slug}</span><span>{template.fieldCount} 个字段</span><span>{template.ruleCount} 条规则</span><span>更新于 {template.updatedAt}</span></div>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--foreground-muted)]"><span>{template.categoryName}</span><span className="mono">{template.slug}</span><span>{template.fieldCount} 个字段</span><span>更新于 {template.updatedAt}</span></div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1">
           <Button asChild variant="ghost" size="sm"><Link href={`/templates/${template.id}`}><Pencil className="size-3.5" />编辑</Link></Button>
           <Button variant="ghost" size="icon" title="复制模板" onClick={() => mutate(() => copyTemplateAction(template.id))}><Copy className="size-4" /></Button>
           <Button variant="ghost" size="icon" title={template.enabled ? "停用模板" : "启用模板"} onClick={() => mutate(() => toggleTemplateAction(template.id, !template.enabled))}><Power className="size-4" /></Button>
-          <ConfirmDialog title={`删除“${template.name}”？`} description="模板及其定制规则会被删除，已有生成历史仍会保留快照。此操作无法撤销。" onConfirm={() => mutate(() => deleteTemplateAction(template.id))} trigger={<Button variant="ghost" size="icon" title="删除模板" className="hover:text-[var(--danger)]"><Trash2 className="size-4" /></Button>} />
+          <ConfirmDialog title={`删除“${template.name}”？`} description="模板会被删除，已有生成历史仍会保留快照。此操作无法撤销。" onConfirm={() => mutate(() => deleteTemplateAction(template.id))} trigger={<Button variant="ghost" size="icon" title="删除模板" className="hover:text-[var(--danger)]"><Trash2 className="size-4" /></Button>} />
         </div>
       </article>)}</div> : <EmptyState icon={FileText} title="没有找到模板" description={templates.length ? "尝试调整搜索关键词或状态筛选。" : "创建第一个模板，为不同任务定义字段与提示词内容。"} action={!templates.length ? <Button asChild><Link href="/templates/new"><Plus className="size-4" />新建模板</Link></Button> : undefined} />}
     </div>
