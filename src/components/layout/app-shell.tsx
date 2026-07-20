@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpenText, Clock3, FileText, LogOut, Menu, Plus, Sparkles, X } from "lucide-react"
+import { BookOpenText, Clock3, FileText, LogIn, LogOut, Menu, Plus, Sparkles, X } from "lucide-react"
 import { logoutAction } from "@/actions/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -14,9 +14,10 @@ const navigation = [
   { href: "/history", label: "生成历史", icon: Clock3 },
 ]
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, isAuthenticated }: { children: React.ReactNode; isAuthenticated: boolean }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const visibleNavigation = isAuthenticated ? navigation : navigation.slice(0, 1)
   return <div className="app-shell">
     <header className="mobile-bar">
       <button className="grid size-10 place-items-center rounded-xl hover:bg-[var(--surface-hover)]" onClick={() => setOpen(true)} aria-label="打开导航"><Menu className="size-5" /></button>
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <button className="grid size-9 place-items-center rounded-xl hover:bg-[var(--surface-hover)] md:hidden" onClick={() => setOpen(false)} aria-label="关闭导航"><X className="size-4" /></button>
       </div>
       <nav className="space-y-1" aria-label="主导航">
-        {navigation.map((item) => {
+        {visibleNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
           return <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={cn(
             "flex min-h-10 items-center gap-3 rounded-[10px] px-3 text-[13px] font-medium transition-colors",
@@ -41,15 +42,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}><item.icon className="size-[17px] stroke-[1.8]" />{item.label}</Link>
         })}
       </nav>
-      <div className="mt-5 px-2">
+      {isAuthenticated && <div className="mt-5 px-2">
         <Button asChild size="sm" className="w-full"><Link href="/templates/new"><Plus className="size-3.5" />新建模板</Link></Button>
-      </div>
+      </div>}
       <div className="mt-auto border-t border-[var(--border)] pt-4">
-        <form action={logoutAction}>
+        {isAuthenticated ? <form action={logoutAction}>
           <button className="flex min-h-10 w-full items-center gap-3 rounded-[10px] px-3 text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]">
             <LogOut className="size-[17px]" />退出当前设备
           </button>
-        </form>
+        </form> : <Button asChild variant="secondary" className="w-full"><Link href="/login" onClick={() => setOpen(false)}><LogIn className="size-4" />管理员登录</Link></Button>}
       </div>
     </aside>
     <main className="app-main">{children}</main>

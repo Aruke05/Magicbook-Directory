@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { AdaptiveSelect } from "@/components/ui/searchable-select"
 
 type TemplateItem = {
   id: string
@@ -40,7 +41,7 @@ export function TemplateList({ templates, categories }: { templates: TemplateIte
   return <>
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="relative w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-[var(--foreground-muted)]" /><input className="control pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索模板名称或标识" aria-label="搜索模板" /></div>
-      <div className="flex flex-wrap items-center gap-2"><select className="control w-auto min-w-36" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="按分类筛选"><option value="all">全部分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><div className="flex rounded-xl bg-[var(--surface-hover)] p-1">
+      <div className="flex flex-wrap items-center gap-2"><AdaptiveSelect className="w-auto min-w-36" value={categoryId === "all" ? "" : categoryId} onValueChange={(value) => setCategoryId(value || "all")} options={categories.map((category) => ({ value: category.id, label: category.name }))} placeholder="全部分类" searchPlaceholder="搜索分类" ariaLabel="按分类筛选" /><div className="flex rounded-xl bg-[var(--surface-hover)] p-1">
         {(["all", "enabled", "disabled"] as const).map((value) => <button key={value} onClick={() => setStatus(value)} className={`min-h-8 rounded-lg px-3 text-xs font-semibold transition ${status === value ? "bg-white text-[var(--foreground)] shadow-sm" : "text-[var(--foreground-muted)]"}`}>{value === "all" ? "全部" : value === "enabled" ? "已启用" : "已停用"}</button>)}
       </div></div>
     </div>

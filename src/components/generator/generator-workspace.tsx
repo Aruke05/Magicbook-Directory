@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm, type UseFormReturn } from "react-hook-form"
 import { AnimatePresence, motion } from "motion/react"
 import { AlertCircle, Check, Clipboard, FileText, RotateCcw, Sparkles } from "lucide-react"
 import { generatePromptAction } from "@/actions/generation"
@@ -9,6 +9,7 @@ import type { PromptField, PromptGenerationResult } from "@/domain/prompts/types
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { AdaptiveSelect, SearchableMultiSelect, SearchableSelect } from "@/components/ui/searchable-select"
 
 type TemplateOption = {
   id: string
@@ -26,9 +27,10 @@ function defaults(fields: PromptField[]) {
   }))
 }
 
-function DynamicField({ field, register, error }: { field: PromptField; register: ReturnType<typeof useForm<Record<string, unknown>>>["register"]; error?: string }) {
-  const common = { id: field.key, ...register(field.key, { required: field.required ? `${field.label}不能为空` : false }) }
+function DynamicField({ field, form, error }: { field: PromptField; form: UseFormReturn<Record<string, unknown>>; error?: string }) {
+  const common = { id: field.key, ...form.register(field.key, { required: field.required ? `${field.label}不能为空` : false }) }
   const describedBy = error ? `${field.key}-error` : field.description ? `${field.key}-help` : undefined
+  const options = (field.options ?? []).map((option) => ({ ...option, keywords: option.value }))
 
   if (field.type === "checkbox" || field.type === "switch") {
     return <div className="flex min-h-11 items-center justify-between gap-4 rounded-xl bg-[var(--surface-subtle)] px-3.5 py-2.5">
@@ -42,14 +44,29 @@ function DynamicField({ field, register, error }: { field: PromptField; register
   if (["textarea", "code", "markdown", "json"].includes(field.type)) {
     control = <textarea {...common} className={className} placeholder={field.placeholder} rows={field.type === "code" ? 8 : 4} aria-describedby={describedBy} />
   } else if (["select", "radio"].includes(field.type)) {
-    control = <select {...common} className={className} aria-describedby={describedBy}>
-      <option value="">请选择</option>
-      {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
+    control = <Controller name={field.key} control={form.control} rules={{ required: field.required ? `${field.label}不能为空` : false }} render={({ field: controllerField }) => <AdaptiveSelect
+      id={field.key}
+      options={options}
+      value={typeof controllerField.value === "string" ? controllerField.value : ""}
+      onValueChange={controllerField.onChange}
+      placeholder="请选择"
+      searchPlaceholder={`搜索${field.label}`}
+      ariaLabel={`${field.label}${field.required ? " 必填" : ""}`}
+      ariaDescribedBy={describedBy}
+      ariaInvalid={Boolean(error)}
+    />} />
   } else if (field.type === "multi-select") {
-    control = <select {...common} className={className} multiple size={Math.min(4, Math.max(2, field.options?.length ?? 2))} aria-describedby={describedBy}>
-      {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
+    control = <Controller name={field.key} control={form.control} rules={{ validate: (value) => !field.required || (Array.isArray(value) && value.length > 0) || `${field.label}不能为空` }} render={({ field: controllerField }) => <SearchableMultiSelect
+      id={field.key}
+      options={options}
+      values={Array.isArray(controllerField.value) ? controllerField.value.filter((value): value is string => typeof value === "string") : []}
+      onValuesChange={controllerField.onChange}
+      placeholder="请选择"
+      searchPlaceholder={`搜索${field.label}`}
+      ariaLabel={`${field.label}${field.required ? " 必填" : ""}`}
+      ariaDescribedBy={describedBy}
+      ariaInvalid={Boolean(error)}
+    />} />
   } else {
     control = <input {...common} type={field.type === "number" ? "number" : field.type === "url" ? "url" : "text"} className={className} placeholder={field.placeholder} aria-describedby={describedBy} />
   }
@@ -130,11 +147,18 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
     <section className="panel overflow-hidden">
       <div className="border-b border-[var(--border)] p-5 sm:p-6">
         <label htmlFor="template" className="field-label">提示词模板</label>
-        <select id="template" className="control text-[15px] font-semibold" value={template.id} onChange={(event) => changeTemplate(event.target.value)}>
-          {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
+        <SearchableSelect
+          id="template"
+          ariaLabel="提示词模板"
+          className="min-h-12 text-[15px] font-semibold"
+          value={template.id}
+          onValueChange={changeTemplate}
+          searchPlaceholder="搜索模板名称或说明"
+          emptyText="没有找到匹配的模板"
+          options={templates.map((item) => ({ value: item.id, label: item.name, description: item.description, meta: `${item.fields.filter((field) => field.type !== "mapping").length} 个字段` }))}
+        />
         <p className="mb-0 mt-3 text-sm leading-6 text-[var(--foreground-secondary)]">{template.description}</p>
-        <div className="mt-3"><Badge>{template.fields.filter((field) => field.type !== "mapping").length} 个输入字段</Badge></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><Badge>{template.fields.filter((field) => field.type !== "mapping").length} 个输入字段</Badge>{templates.length > 1 && <span className="text-xs text-[var(--foreground-muted)]">共 {templates.length} 个模板，可搜索切换</span>}</div>
       </div>
       <form onSubmit={submit}>
         <AnimatePresence mode="wait" initial={false}>
@@ -143,7 +167,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
               <legend className="mb-4 text-[13px] font-bold tracking-wide text-[var(--foreground)]">{name}</legend>
               <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
                 {fields.map((field) => <div key={field.id} className={field.width === "full" ? "sm:col-span-2" : ""}>
-                  <DynamicField field={field} register={form.register} error={(form.formState.errors[field.key]?.message as string | undefined) ?? serverErrors[field.key]} />
+                  <DynamicField field={field} form={form} error={(form.formState.errors[field.key]?.message as string | undefined) ?? serverErrors[field.key]} />
                 </div>)}
               </div>
             </fieldset>) : <div className="rounded-xl bg-[var(--surface-subtle)] px-4 py-7 text-center text-sm text-[var(--foreground-muted)]">此模板无需填写字段，可直接生成。</div>}
