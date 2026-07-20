@@ -1,0 +1,37 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import { AlertCircle, Beaker, Check, ChevronRight, X } from "lucide-react"
+import { testPromptRulesAction } from "@/actions/generation"
+import type { PromptField, PromptGenerationResult } from "@/domain/prompts/types"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
+type TemplateOption = { id: string; name: string; fields: PromptField[] }
+type TestResult = { normalizedInput: Record<string, unknown>; result: PromptGenerationResult }
+
+function initialValues(fields: PromptField[]) { return Object.fromEntries(fields.map((field) => [field.key, field.type === "multi-select" ? [] : field.type === "checkbox" || field.type === "switch" ? false : field.defaultValue ?? ""])) }
+
+export function RuleTester({ templates }: { templates: TemplateOption[] }) {
+  const [templateId, setTemplateId] = useState(templates[0]?.id ?? "")
+  const template = templates.find((item) => item.id === templateId)
+  const [values, setValues] = useState<Record<string, unknown>>(initialValues(template?.fields ?? []))
+  const [output, setOutput] = useState<TestResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const changeTemplate = (id: string) => { const next = templates.find((item) => item.id === id); setTemplateId(id); setValues(initialValues(next?.fields ?? [])); setOutput(null); setError(null) }
+  const run = () => startTransition(async () => { const response = await testPromptRulesAction(templateId, values); if (response.ok) { setOutput({ normalizedInput: response.normalizedInput, result: response.result }); setError(null) } else { setError(response.error); setOutput(null) } })
+  if (!template) return <div className="panel p-8 text-center text-sm text-[var(--foreground-muted)]">没有可测试的已启用模板。</div>
+  return <div className="grid gap-5 lg:grid-cols-[minmax(320px,.8fr)_minmax(0,1.2fr)]">
+    <section className="panel overflow-hidden self-start"><div className="border-b border-[var(--border)] p-5"><label className="field-label" htmlFor="test-template">测试模板</label><select id="test-template" className="control" value={templateId} onChange={(e) => changeTemplate(e.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="space-y-4 p-5">{template.fields.map((field) => {
+      const controlId = `test-${field.key}`
+      return <div key={field.id}><label className="field-label" htmlFor={controlId}>{field.label}</label>{["checkbox", "switch"].includes(field.type) ? <label className="flex min-h-10 items-center gap-2 rounded-xl bg-[var(--surface-subtle)] px-3 text-sm"><input id={controlId} type="checkbox" checked={Boolean(values[field.key])} onChange={(e) => setValues({ ...values, [field.key]: e.target.checked })} />{Boolean(values[field.key]) ? "是" : "否"}</label> : ["select", "radio"].includes(field.type) ? <select id={controlId} className="control" value={String(values[field.key] ?? "")} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}><option value="">请选择</option>{field.options?.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select> : field.type === "multi-select" ? <select id={controlId} className="control" multiple value={(values[field.key] as string[]) ?? []} onChange={(e) => setValues({ ...values, [field.key]: [...e.target.selectedOptions].map((item) => item.value) })}>{field.options?.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select> : ["textarea", "code", "json", "markdown"].includes(field.type) ? <textarea id={controlId} className="control mono" value={String(values[field.key] ?? "")} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })} /> : <input id={controlId} className="control" type={field.type === "number" ? "number" : field.type === "url" ? "url" : "text"} value={String(values[field.key] ?? "")} onChange={(e) => setValues({ ...values, [field.key]: field.type === "number" && e.target.value !== "" ? Number(e.target.value) : e.target.value })} />}</div>
+    })}</div><div className="border-t border-[var(--border)] bg-[var(--surface-subtle)] p-4"><Button className="w-full" onClick={run} loading={pending}><Beaker className="size-4" />运行规则测试</Button>{error && <div className="mt-3 flex gap-2 rounded-xl bg-[var(--danger-soft)] p-3 text-xs text-[var(--danger)]"><AlertCircle className="size-3.5 shrink-0" />{error}</div>}</div></section>
+    <section className="space-y-5">{output ? <>
+      <div className="panel p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="section-title">最终选择</h2><Badge tone={output.result.source === "custom-rule" ? "accent" : "neutral"}>{output.result.source === "custom-rule" ? "定制规则" : "通用模板"}</Badge></div><p className="m-0 text-sm leading-6 text-[var(--foreground-secondary)]">{output.result.matchedRuleName ? `已选择“${output.result.matchedRuleName}”，其优先级与具体程度高于其他命中规则。` : "没有有效定制规则命中，已使用模板的通用内容。"}</p></div>
+      <div className="panel overflow-hidden"><div className="border-b border-[var(--border)] px-5 py-4"><h2 className="section-title">规则匹配解释</h2></div><div className="divide-y divide-[var(--border)]">{output.result.ruleEvaluations.length ? output.result.ruleEvaluations.map((evaluation) => <div key={evaluation.ruleId} className="p-5"><div className="flex flex-wrap items-center gap-2"><h3 className="m-0 text-sm font-semibold">{evaluation.ruleName}</h3><Badge tone={evaluation.matched ? "success" : "neutral"}>{evaluation.matched ? "匹配" : "未匹配"}</Badge><span className="text-xs text-[var(--foreground-muted)]">优先级 {evaluation.priority} · 具体度 {evaluation.specificity}</span></div><div className="mt-3 space-y-2">{evaluation.conditionResults.map((condition) => <div key={condition.conditionId} className="flex items-start gap-2 text-xs leading-5 text-[var(--foreground-secondary)]">{condition.matched ? <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--success)]" /> : <X className="mt-0.5 size-3.5 shrink-0 text-[var(--danger)]" />}<span><span className="mono">{condition.fieldKey}</span>：{condition.reason}</span></div>)}</div></div>) : <div className="p-7 text-center text-sm text-[var(--foreground-muted)]">此模板还没有定制规则。</div>}</div></div>
+      <details className="panel overflow-hidden"><summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold">标准化输入 <ChevronRight className="ml-1 inline size-4" /></summary><pre className="mono m-0 overflow-auto border-t border-[var(--border)] bg-[var(--surface-subtle)] p-5 text-xs leading-6">{JSON.stringify(output.normalizedInput, null, 2)}</pre></details>
+      <div className="panel overflow-hidden"><div className="border-b border-[var(--border)] px-5 py-4"><h2 className="section-title">最终提示词预览</h2></div><pre className="prompt-output m-0 max-h-[520px] min-h-72">{output.result.content}</pre></div>
+    </> : <div className="panel grid min-h-[420px] place-items-center p-8 text-center"><div><div className="mx-auto mb-4 grid size-11 place-items-center rounded-2xl bg-[var(--surface-hover)] text-[var(--foreground-muted)]"><Beaker className="size-5" /></div><h2 className="m-0 text-[15px] font-semibold">等待测试</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--foreground-muted)]">填写字段并运行测试，这里会解释每条规则、每个条件以及最终选择。</p></div></div>}</section>
+  </div>
+}
