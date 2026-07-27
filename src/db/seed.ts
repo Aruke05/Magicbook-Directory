@@ -266,14 +266,6 @@ if (!existingStrategyTemplate) {
     fieldSchema: JSON.stringify(strategyFields),
     enabled: true,
   }).run()
-} else {
-  db.update(promptTemplates).set({
-    name: "支付服务策略类对接",
-    description: "根据四方支付服务自动选择全局参数和专属要求，生成支付服务策略类对接任务提示词。",
-    content: strategyContent,
-    fieldSchema: JSON.stringify(strategyFields),
-    updatedAt: new Date(),
-  }).where(eq(promptTemplates.id, strategyTemplateId)).run()
 }
 
 sqlite.close()
