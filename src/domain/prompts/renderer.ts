@@ -25,9 +25,9 @@ export function templateReferences(content: string) {
   return [...references]
 }
 
-export function validateTemplate(content: string, fields: PromptField[]) {
+export function validateTemplate(content: string, fields: PromptField[], globalParameterKeys: string[] = []) {
   if (!content.trim()) throw new Error("提示词内容不能为空")
-  const allowed = new Set(fields.filter((field) => field.includeInPrompt).map((field) => field.key))
+  const allowed = new Set([...fields.filter((field) => field.includeInPrompt).map((field) => field.key), ...globalParameterKeys])
   const invalid = templateReferences(content).filter((key) => !allowed.has(key))
   if (invalid.length) throw new Error(`模板引用了无效变量：${invalid.join("、")}`)
   const openings = content.match(/{{#if\s+/g)?.length ?? 0
@@ -36,8 +36,8 @@ export function validateTemplate(content: string, fields: PromptField[]) {
   return true
 }
 
-export function renderTemplate(content: string, fields: PromptField[], values: Record<string, unknown>) {
-  validateTemplate(content, fields)
+export function renderTemplate(content: string, fields: PromptField[], values: Record<string, unknown>, globalParameterKeys: string[] = []) {
+  validateTemplate(content, fields, globalParameterKeys)
   let rendered = content
   for (let index = 0; index < 10 && rendered.includes("{{#if"); index += 1) {
     rendered = rendered.replace(ifPattern, (_block, key: string, body: string) => hasValue(values[key]) ? body : "")

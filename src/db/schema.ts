@@ -31,6 +31,27 @@ export const promptTemplates = sqliteTable("prompt_templates", {
   index("templates_enabled_idx").on(table.enabled),
 ])
 
+export const globalParameters = sqliteTable("global_parameters", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  description: text("description").notNull().default(""),
+  kind: text("kind", { enum: ["fixed", "select", "mapping"] }).notNull().default("fixed"),
+  valueType: text("value_type", { enum: ["text", "url", "multiline"] }).notNull().default("text"),
+  value: text("value").notNull().default(""),
+  options: text("options").notNull().default("[]"),
+  sourceParameterKey: text("source_parameter_key"),
+  mappingRules: text("mapping_rules").notNull().default("[]"),
+  fallback: text("fallback").notNull().default(""),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("global_parameters_key_idx").on(table.key),
+  index("global_parameters_enabled_idx").on(table.enabled),
+  index("global_parameters_sort_idx").on(table.sortOrder),
+])
+
 export const promptGenerations = sqliteTable("prompt_generations", {
   id: text("id").primaryKey(),
   templateId: text("template_id").references(() => promptTemplates.id, { onDelete: "set null" }),

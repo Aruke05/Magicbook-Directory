@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { useRouter } from "next/navigation"
 import { AlertCircle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Braces, Check, ChevronDown, ChevronRight, Copy, Plus, Save, Trash2, Variable } from "lucide-react"
 import { saveTemplateAction } from "@/actions/templates"
+import type { GlobalParameterKind, GlobalParameterOption } from "@/domain/global-parameters/types"
 import { fieldTypes, type PromptField } from "@/domain/prompts/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,14 @@ type InitialTemplate = {
   content: string
   enabled: boolean
   fields: PromptField[]
+}
+
+type GlobalTemplateParameter = {
+  key: string
+  label: string
+  description: string
+  kind: GlobalParameterKind
+  options: GlobalParameterOption[]
 }
 
 const fieldTypeLabels: Record<PromptField["type"], string> = {
@@ -62,13 +71,14 @@ function MappingSourceValuePicker({
   />
 }
 
-export function TemplateEditor({ initial, categories }: { initial: InitialTemplate; categories: Array<{ id: string; name: string }> }) {
+export function TemplateEditor({ initial, categories, globalParameters }: { initial: InitialTemplate; categories: Array<{ id: string; name: string }>; globalParameters: GlobalTemplateParameter[] }) {
   const router = useRouter()
   const [template, setTemplate] = useState(initial)
   const [expanded, setExpanded] = useState<string | null>(initial.fields[0]?.id ?? null)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [insertFieldId, setInsertFieldId] = useState(initial.fields.find((field) => field.includeInPrompt)?.id ?? "")
+  const [insertGlobalKey, setInsertGlobalKey] = useState(globalParameters[0]?.key ?? "")
   const [optionDrafts, setOptionDrafts] = useState<Record<string, string>>(() => Object.fromEntries(initial.fields.map((field) => [field.id, serializeOptions(field)])))
   const [pending, startTransition] = useTransition()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -92,6 +102,14 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
 
   const sortedFields = useMemo(() => [...template.fields].sort((a, b) => a.sortOrder - b.sortOrder), [template.fields])
   const insertableFields = useMemo(() => sortedFields.filter((field) => field.includeInPrompt), [sortedFields])
+  const globalMappingSources = useMemo(() => globalParameters.filter((parameter) => parameter.kind === "select").map((parameter) => ({
+    id: `global-${parameter.key}`,
+    key: parameter.key,
+    label: parameter.label,
+    type: "select" as const,
+    options: parameter.options,
+    global: true,
+  })), [globalParameters])
   const insertField = insertableFields.find((field) => field.id === insertFieldId) ?? insertableFields[0]
   const updateField = (id: string, patch: Partial<PromptField>) => setTemplate((current) => ({ ...current, fields: current.fields.map((field) => field.id === id ? { ...field, ...patch } : field) }))
   const updateFieldOptions = (field: PromptField, value: string) => {
@@ -113,7 +131,7 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
       required: field.type === "mapping" ? false : field.required,
       storeInHistory: field.type === "mapping" ? true : field.storeInHistory,
     })
-    const source = sortedFields.find((item) => item.id !== field.id && ["text", "select", "radio"].includes(item.type))
+    const source = sortedFields.find((item) => item.id !== field.id && ["text", "select", "radio"].includes(item.type)) ?? globalMappingSources[0]
     updateField(field.id, {
       type,
       required: true,
@@ -130,7 +148,7 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
     setExpanded(field.id)
   }
   const addMappingField = () => {
-    const source = sortedFields.find((field) => ["text", "select", "radio"].includes(field.type))
+    const source = sortedFields.find((field) => ["text", "select", "radio"].includes(field.type)) ?? globalMappingSources[0]
     const field: PromptField = {
       ...newField(template.fields.length),
       label: "自动映射",
@@ -200,7 +218,10 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
         {sortedFields.length ? <div className="divide-y divide-[var(--border)]">{sortedFields.map((field, index) => {
           const open = expanded === field.id
           const mapping = field.mapping ?? { sourceFieldKey: "", rules: [{ sourceValues: [""], output: "" }] }
-          const mappingSources = sortedFields.filter((item) => item.id !== field.id && ["text", "select", "radio"].includes(item.type))
+          const mappingSources = [
+            ...sortedFields.filter((item) => item.id !== field.id && ["text", "select", "radio"].includes(item.type)).map((item) => ({ ...item, global: false })),
+            ...globalMappingSources,
+          ]
           const mappingSource = mappingSources.find((item) => item.key === mapping.sourceFieldKey)
           const mappingSourceOptions = ["select", "radio"].includes(mappingSource?.type ?? "") ? mappingSource?.options ?? [] : []
           return <div key={field.id}>
@@ -231,7 +252,7 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
                   <div className="rounded-xl bg-[var(--accent-soft)] px-4 py-3 text-xs leading-5 text-[var(--foreground-secondary)]"><strong className="text-[var(--foreground)]">这个字段由系统自动生成</strong><br />生成页面不会要求用户填写，只需配置下面的对应关系。</div>
                   <div>
                     <label className="field-label">根据哪个输入字段判断</label>
-                    <AdaptiveSelect options={mappingSources.map((source) => ({ value: source.key, label: source.label, meta: source.key }))} value={mapping.sourceFieldKey} onValueChange={(value) => updateField(field.id, { mapping: { ...mapping, sourceFieldKey: value } })} placeholder="请选择来源字段" searchPlaceholder="搜索来源字段" ariaLabel={`${field.label}的来源字段`} />
+                    <AdaptiveSelect options={mappingSources.map((source) => ({ value: source.key, label: source.label, meta: source.global ? `全局 · ${source.key}` : source.key }))} value={mapping.sourceFieldKey} onValueChange={(value) => updateField(field.id, { mapping: { ...mapping, sourceFieldKey: value } })} placeholder="请选择来源字段" searchPlaceholder="搜索来源字段" ariaLabel={`${field.label}的来源字段`} />
                     {!mappingSources.length && <p className="field-help">请先添加一个单行文本、下拉选择或单选字段。</p>}
                   </div>
                   <div>
@@ -274,6 +295,14 @@ export function TemplateEditor({ initial, categories }: { initial: InitialTempla
               <Button size="sm" variant="secondary" onClick={() => insertField && insertVariable(insertField.key, true)} disabled={!insertField}><Braces className="size-3.5" />插入条件块</Button>
             </div>
             <p className="mb-0 mt-2 text-xs text-[var(--foreground-muted)]">插入到下方输入框的当前光标位置；条件块仅在字段有值时输出内容。</p>
+            {globalParameters.length > 0 && <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-[var(--border)] pt-3">
+              <div className="min-w-60 flex-1">
+                <label className="field-label" htmlFor="insert-global-parameter">插入全局参数</label>
+                <AdaptiveSelect id="insert-global-parameter" className="mono" options={globalParameters.map((parameter) => ({ value: parameter.key, label: parameter.label, meta: `{{${parameter.key}}}`, description: parameter.description }))} value={insertGlobalKey} onValueChange={setInsertGlobalKey} clearable={false} placeholder="暂无全局参数" searchPlaceholder="搜索全局参数" ariaLabel="插入全局参数" />
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => insertGlobalKey && insertVariable(insertGlobalKey)} disabled={!insertGlobalKey}><Variable className="size-3.5" />插入变量</Button>
+              <Button size="sm" variant="secondary" onClick={() => insertGlobalKey && insertVariable(insertGlobalKey, true)} disabled={!insertGlobalKey}><Braces className="size-3.5" />插入条件块</Button>
+            </div>}
           </div>
           <textarea ref={textareaRef} aria-label="提示词内容" className="control mono leading-6" style={{ resize: "none" }} value={template.content} onChange={(e) => setTemplate({ ...template, content: e.target.value })} placeholder="输入提示词内容，并使用上方工具栏插入动态字段…" />
         </div>

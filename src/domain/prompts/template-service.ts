@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import { and, desc, eq, like, ne } from "drizzle-orm"
 import { db } from "@/db/client"
 import { promptCategories, promptTemplates } from "@/db/schema"
+import { getGlobalParameterKeys, listGlobalParameters } from "@/domain/global-parameters/service"
 import { parseFields, promptFieldsSchema } from "./field-schema"
 import { validateTemplate } from "./renderer"
 import type { PromptField, TemplateRecord } from "./types"
@@ -52,7 +53,18 @@ export function validateTemplateInput(input: {
       try { new RegExp(field.validation.pattern) } catch { throw new Error(`字段“${field.label}”的正则表达式无效`) }
     }
   })
-  validateTemplate(input.content, fields)
+  const globalParameters = listGlobalParameters({ enabledOnly: true })
+  const globalKeys = new Set(globalParameters.map((parameter) => parameter.key))
+  for (const field of fields) {
+    if (!field.mapping) continue
+    const localSource = fields.find((item) => item.key === field.mapping?.sourceFieldKey)
+    const globalSource = globalParameters.find((parameter) => parameter.key === field.mapping?.sourceFieldKey)
+    if (!localSource && !globalSource) throw new Error(`字段“${field.label}”的映射来源不存在`)
+    if (globalSource && globalSource.kind !== "select") throw new Error(`字段“${field.label}”只能使用选项型全局参数作为映射来源`)
+  }
+  const conflict = fields.find((field) => globalKeys.has(field.key))
+  if (conflict) throw new Error(`字段 Key“${conflict.key}”与全局参数冲突，请删除模板内的重复字段`)
+  validateTemplate(input.content, fields, getGlobalParameterKeys())
   return { ...input, name: input.name.trim(), slug: input.slug.trim(), fields }
 }
 

@@ -16,6 +16,7 @@ type TemplateOption = {
   name: string
   description: string
   fields: PromptField[]
+  globalFields: PromptField[]
 }
 
 function defaults(fields: PromptField[]) {
@@ -82,7 +83,7 @@ function DynamicField({ field, form, error }: { field: PromptField; form: UseFor
 export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] }) {
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "")
   const template = templates.find((item) => item.id === templateId) ?? templates[0]
-  const form = useForm<Record<string, unknown>>({ defaultValues: defaults(template?.fields ?? []) })
+  const form = useForm<Record<string, unknown>>({ defaultValues: defaults([...(template?.globalFields ?? []), ...(template?.fields ?? [])]) })
   const [result, setResult] = useState<PromptGenerationResult | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({})
@@ -91,7 +92,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
 
   const groups = useMemo(() => {
     const map = new Map<string, PromptField[]>()
-    for (const field of template?.fields.filter((item) => item.type !== "mapping") ?? []) {
+    for (const field of [...(template?.globalFields ?? []), ...(template?.fields.filter((item) => item.type !== "mapping") ?? [])]) {
       const key = field.group || "填写信息"
       map.set(key, [...(map.get(key) ?? []), field])
     }
@@ -101,7 +102,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
   const changeTemplate = (id: string) => {
     const next = templates.find((item) => item.id === id)
     setTemplateId(id)
-    form.reset(defaults(next?.fields ?? []))
+    form.reset(defaults([...(next?.globalFields ?? []), ...(next?.fields ?? [])]))
     setResult(null)
     setMessage(null)
     setServerErrors({})
@@ -124,7 +125,7 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
   })
 
   const reset = () => {
-    form.reset(defaults(template?.fields ?? []))
+    form.reset(defaults([...(template?.globalFields ?? []), ...(template?.fields ?? [])]))
     setResult(null)
     setMessage(null)
     setServerErrors({})
@@ -155,10 +156,10 @@ export function GeneratorWorkspace({ templates }: { templates: TemplateOption[] 
           onValueChange={changeTemplate}
           searchPlaceholder="搜索模板名称或说明"
           emptyText="没有找到匹配的模板"
-          options={templates.map((item) => ({ value: item.id, label: item.name, description: item.description, meta: `${item.fields.filter((field) => field.type !== "mapping").length} 个字段` }))}
+          options={templates.map((item) => ({ value: item.id, label: item.name, description: item.description, meta: `${item.globalFields.length + item.fields.filter((field) => field.type !== "mapping").length} 个字段` }))}
         />
         <p className="mb-0 mt-3 text-sm leading-6 text-[var(--foreground-secondary)]">{template.description}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2"><Badge>{template.fields.filter((field) => field.type !== "mapping").length} 个输入字段</Badge>{templates.length > 1 && <span className="text-xs text-[var(--foreground-muted)]">共 {templates.length} 个模板，可搜索切换</span>}</div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><Badge>{template.globalFields.length + template.fields.filter((field) => field.type !== "mapping").length} 个输入字段</Badge>{template.globalFields.length > 0 && <Badge tone="accent">{template.globalFields.length} 个全局选项</Badge>}{templates.length > 1 && <span className="text-xs text-[var(--foreground-muted)]">共 {templates.length} 个模板，可搜索切换</span>}</div>
       </div>
       <form onSubmit={submit}>
         <AnimatePresence mode="wait" initial={false}>
