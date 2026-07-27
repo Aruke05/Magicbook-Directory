@@ -3,7 +3,7 @@ import path from "node:path"
 import Database from "better-sqlite3"
 import { drizzle } from "drizzle-orm/better-sqlite3"
 import { eq } from "drizzle-orm"
-import { promptCategories, promptTemplates } from "./schema"
+import { globalParameters, promptCategories, promptTemplates } from "./schema"
 import type { PromptField } from "@/domain/prompts/types"
 
 const databasePath = path.resolve(process.cwd(), process.env.DATABASE_PATH ?? "./data/magicbook.db")
@@ -114,27 +114,89 @@ const defaultContent = `你是一名资深软件工程师和系统集成专家�
 {{#if outputFormat}}请按照以下格式输出：{{outputFormat}}
 {{/if}}`
 
+const sourceServiceOptions = [
+  "nexapay", "lakpay", "devapay", "nine", "poppay", "mcbpay", "6g", "tata", "vns", "nupa", "mkpay",
+].map((value) => ({ label: value, value }))
+
+const branchMappingRules = [
+  { sourceValues: ["nexapay"], output: "nexapay" },
+  { sourceValues: ["lakpay"], output: "lakpay" },
+  { sourceValues: ["devapay"], output: "devapay" },
+  { sourceValues: ["nine", "poppay"], output: "uat" },
+  { sourceValues: ["mcbpay", "6g", "tata", "vns", "nupa", "mkpay"], output: "prod-pkr" },
+]
+
+const globalParameterSeeds = [
+  {
+    id: "global-source-service",
+    key: "sourceService",
+    label: "四方支付服务",
+    description: "生成对接任务时选择作为参考的四方支付服务。",
+    kind: "select" as const,
+    valueType: "text" as const,
+    options: JSON.stringify(sourceServiceOptions),
+    sortOrder: 0,
+  },
+  {
+    id: "global-base-url",
+    key: "baseUrl",
+    label: "BaseURL",
+    description: "根据四方支付服务自动取得接口基础地址。",
+    kind: "mapping" as const,
+    valueType: "url" as const,
+    sourceParameterKey: "sourceService",
+    mappingRules: "[]",
+    sortOrder: 1,
+  },
+  {
+    id: "global-callback-ip",
+    key: "callbackIp",
+    label: "回调 IP",
+    description: "根据四方支付服务自动取得回调来源 IP。",
+    kind: "mapping" as const,
+    valueType: "text" as const,
+    sourceParameterKey: "sourceService",
+    mappingRules: "[]",
+    sortOrder: 2,
+  },
+  {
+    id: "global-documentation-url",
+    key: "documentationUrl",
+    label: "对接文档地址",
+    description: "根据四方支付服务自动取得对接文档地址。",
+    kind: "mapping" as const,
+    valueType: "url" as const,
+    sourceParameterKey: "sourceService",
+    mappingRules: "[]",
+    sortOrder: 3,
+  },
+  {
+    id: "global-target-branch",
+    key: "branch",
+    label: "目标分支",
+    description: "根据四方支付服务自动选择代码目标分支。",
+    kind: "mapping" as const,
+    valueType: "text" as const,
+    sourceParameterKey: "sourceService",
+    mappingRules: JSON.stringify(branchMappingRules),
+    sortOrder: 4,
+  },
+  {
+    id: "global-target-region",
+    key: "targetRegion",
+    label: "服务地区",
+    description: "根据四方支付服务自动取得服务地区。",
+    kind: "mapping" as const,
+    valueType: "text" as const,
+    sourceParameterKey: "sourceService",
+    mappingRules: "[]",
+    sortOrder: 5,
+  },
+]
+
 const strategyFields: PromptField[] = [
-  field("sourceService", "参考服务", "select", 0, { required: true, group: "对接任务", options: [
-    "nexapay", "lakpay", "devapay", "nine", "poppay", "mcbpay", "6g", "tata", "vns", "nupa", "mkpay",
-  ].map((value) => ({ label: value, value })) }),
-  field("targetService", "目标服务", "text", 1, { required: true, group: "对接任务", placeholder: "例如 tikpay" }),
-  field("branch", "目标分支", "mapping", 2, {
-    required: true,
-    width: "full",
-    storeInHistory: false,
-    mapping: {
-      sourceFieldKey: "sourceService",
-      rules: [
-        { sourceValues: ["nexapay"], output: "nexapay" },
-        { sourceValues: ["lakpay"], output: "lakpay" },
-        { sourceValues: ["devapay"], output: "devapay" },
-        { sourceValues: ["nine", "poppay"], output: "uat" },
-        { sourceValues: ["mcbpay", "6g", "tata", "vns", "nupa", "mkpay"], output: "prod-pkr" },
-      ],
-    },
-  }),
-  field("serviceRequirements", "服务专属要求", "mapping", 3, {
+  field("targetService", "目标服务", "text", 0, { required: true, group: "对接任务", placeholder: "例如 tikpay" }),
+  field("serviceRequirements", "服务专属要求", "mapping", 1, {
     required: true,
     width: "full",
     storeInHistory: false,
@@ -146,7 +208,7 @@ const strategyFields: PromptField[] = [
       ],
     },
   }),
-  field("integrationInfo", "对接信息", "markdown", 4, {
+  field("integrationInfo", "对接信息", "markdown", 2, {
     required: true,
     group: "对接资料",
     placeholder: "粘贴地区、接口地址、文档、商户号、密钥等对接信息",
@@ -158,6 +220,15 @@ const strategyFields: PromptField[] = [
 const strategyContent = `在【{{branch}}】分支 【{{sourceService}}】服务 参考其他策略类 制作【{{targetService}}】的策略类
 并且在数据库中直接插入sfzf_td，不要创建flysql文件，直接插入数据库
 
+{{#if targetRegion}}服务地区：{{targetRegion}}
+{{/if}}
+{{#if baseUrl}}BaseURL：{{baseUrl}}
+{{/if}}
+{{#if callbackIp}}回调 IP：{{callbackIp}}
+{{/if}}
+{{#if documentationUrl}}对接文档地址：{{documentationUrl}}
+{{/if}}
+
 要求：
 {{serviceRequirements}}
 
@@ -165,6 +236,9 @@ const strategyContent = `在【{{branch}}】分支 【{{sourceService}}】服务
 {{integrationInfo}}`
 
 db.insert(promptCategories).values({ id: categoryId, name: "开发与集成", slug: "development", description: "软件开发、系统集成与工程协作提示词", sortOrder: 0 }).onConflictDoNothing().run()
+for (const parameter of globalParameterSeeds) {
+  db.insert(globalParameters).values(parameter).onConflictDoNothing().run()
+}
 
 const existing = db.select().from(promptTemplates).where(eq(promptTemplates.id, templateId)).get()
 if (!existing) {
@@ -187,7 +261,7 @@ if (!existingStrategyTemplate) {
     categoryId,
     name: "支付服务策略类对接",
     slug: "payment-strategy-integration",
-    description: "根据参考服务自动选择目标分支，生成支付服务策略类对接任务提示词。",
+    description: "根据四方支付服务自动选择全局参数，生成支付服务策略类对接任务提示词。",
     content: strategyContent,
     fieldSchema: JSON.stringify(strategyFields),
     enabled: true,
@@ -195,7 +269,7 @@ if (!existingStrategyTemplate) {
 } else {
   db.update(promptTemplates).set({
     name: "支付服务策略类对接",
-    description: "根据参考服务自动选择目标分支和专属要求，生成支付服务策略类对接任务提示词。",
+    description: "根据四方支付服务自动选择全局参数和专属要求，生成支付服务策略类对接任务提示词。",
     content: strategyContent,
     fieldSchema: JSON.stringify(strategyFields),
     updatedAt: new Date(),

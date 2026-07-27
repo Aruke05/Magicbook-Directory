@@ -70,9 +70,9 @@ export const promptFieldsSchema = z
           return
         }
         const sourceField = fields.find((item) => item.key === field.mapping?.sourceFieldKey)
-        if (!sourceField) {
+        if (!field.mapping.sourceFieldKey) {
           ctx.addIssue({ code: "custom", message: "请选择自动映射的来源字段", path: [index, "mapping", "sourceFieldKey"] })
-        } else if (!["text", "select", "radio"].includes(sourceField.type)) {
+        } else if (sourceField && !["text", "select", "radio"].includes(sourceField.type)) {
           ctx.addIssue({ code: "custom", message: "自动映射只能根据单行文本、下拉选择或单选字段判断", path: [index, "mapping", "sourceFieldKey"] })
         }
         if (!field.mapping.rules.length) {
@@ -159,9 +159,9 @@ export function buildFieldValuesSchema(fields: PromptField[]) {
   return z.object(shape)
 }
 
-export function resolveMappedFieldValues(fields: PromptField[], input: Record<string, unknown>) {
+export function resolveMappedFieldValues(fields: PromptField[], input: Record<string, unknown>, externalFieldNames: Map<string, string> = new Map()) {
   const values = { ...input }
-  const fieldNames = new Map(fields.map((field) => [field.key, field.label]))
+  const fieldNames = new Map([...externalFieldNames, ...fields.map((field) => [field.key, field.label] as const)])
   for (const field of fields.filter((item) => item.type === "mapping")) {
     if (!field.mapping) continue
     const sourceValue = String(values[field.mapping.sourceFieldKey] ?? "").trim()
