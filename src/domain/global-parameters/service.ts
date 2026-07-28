@@ -108,6 +108,25 @@ function validateMappingRules(rules: GlobalParameterMappingRule[]) {
   }
 }
 
+function canBeMappingSource(parameter: Pick<GlobalParameter, "kind" | "valueType">) {
+  return parameter.kind === "select" || (parameter.kind === "mapping" && parameter.valueType !== "multiline")
+}
+
+function validateMappingSource(parameterKey: string, sourceParameterKey: string, parameters: GlobalParameter[]) {
+  const byKey = new Map(parameters.map((parameter) => [parameter.key, parameter]))
+  const source = byKey.get(sourceParameterKey)
+  if (!source || !canBeMappingSource(source)) throw new Error("映射来源必须是选项参数或单行映射参数")
+
+  const visited = new Set([parameterKey])
+  let current: GlobalParameter | undefined = source
+  while (current) {
+    if (visited.has(current.key)) throw new Error("全局参数之间不能形成循环映射")
+    visited.add(current.key)
+    if (current.kind !== "mapping" || !current.sourceParameterKey) break
+    current = byKey.get(current.sourceParameterKey)
+  }
+}
+
 export function saveGlobalParameter(input: GlobalParameterInput & { id?: string }) {
   const valid = parameterSchema.parse(input)
   const existing = valid.id ? getGlobalParameter(valid.id) : null
@@ -122,16 +141,20 @@ export function saveGlobalParameter(input: GlobalParameterInput & { id?: string 
     })
   if (duplicate) throw new Error("参数 Key 已存在")
 
+  const parameters = listGlobalParameters()
   if (valid.kind === "select") validateOptions(valid.options)
-  if (existing?.kind === "select" && valid.kind !== "select") {
+  if (existing && existing.kind !== valid.kind) {
     const usage = parameterUsage(valid.key, valid.id)
     if (usage.dependent) throw new Error(`“${usage.dependent.label}”正在使用此参数作为映射来源，不能修改取值方式`)
+  }
+  if (existing && existing.kind === "mapping" && valid.kind === "mapping" && valid.valueType === "multiline") {
+    const usage = parameterUsage(valid.key, valid.id)
+    if (usage.dependent) throw new Error(`“${usage.dependent.label}”正在使用此参数作为映射来源，输出格式必须保持单行`)
   }
   if (valid.kind === "mapping") {
     if (!valid.sourceParameterKey) throw new Error("请选择映射来源参数")
     if (valid.sourceParameterKey === valid.key) throw new Error("参数不能映射自身")
-    const source = listGlobalParameters().find((parameter) => parameter.key === valid.sourceParameterKey)
-    if (!source || source.kind !== "select") throw new Error("映射来源必须是已保存的选项参数")
+    validateMappingSource(valid.key, valid.sourceParameterKey, parameters)
     validateMappingRules(valid.mappingRules)
   }
   if (!valid.enabled && existing?.enabled) {
@@ -178,8 +201,7 @@ export function getGlobalParameterKeys() {
   return listGlobalParameters({ enabledOnly: true }).map((parameter) => parameter.key)
 }
 
-export function globalParameterInputFields(template: Pick<TemplateRecord, "content" | "fields">): PromptField[] {
-  const parameters = listGlobalParameters({ enabledOnly: true })
+function referencedParameterKeys(parameters: GlobalParameter[], template: Pick<TemplateRecord, "content" | "fields">) {
   const byKey = new Map(parameters.map((parameter) => [parameter.key, parameter]))
   const needed = new Set(templateReferences(template.content))
   for (const field of template.fields) {
@@ -197,7 +219,12 @@ export function globalParameterInputFields(template: Pick<TemplateRecord, "conte
       }
     }
   }
+  return needed
+}
 
+export function globalParameterInputFields(template: Pick<TemplateRecord, "content" | "fields">): PromptField[] {
+  const parameters = listGlobalParameters({ enabledOnly: true })
+  const needed = referencedParameterKeys(parameters, template)
   return parameters
     .filter((parameter) => needed.has(parameter.key) && parameter.kind === "select")
     .map((parameter) => ({
@@ -222,17 +249,14 @@ export function resolveGlobalParameterValues(
   input: Record<string, unknown>,
 ) {
   const parameters = listGlobalParameters({ enabledOnly: true })
-  const needed = new Set(templateReferences(template.content))
-  for (const field of template.fields) {
-    if (field.mapping?.sourceFieldKey) needed.add(field.mapping.sourceFieldKey)
-  }
+  const needed = referencedParameterKeys(parameters, template)
   const values: Record<string, unknown> = {}
 
   for (const parameter of parameters.filter((item) => item.kind === "fixed" && needed.has(item.key))) {
     values[parameter.key] = parameter.value
   }
   for (const parameter of parameters.filter((item) => item.kind === "select")) {
-    if (!needed.has(parameter.key) && !parameters.some((item) => needed.has(item.key) && item.sourceParameterKey === parameter.key)) continue
+    if (!needed.has(parameter.key)) continue
     const selected = String(input[parameter.key] ?? "").trim()
     if (!parameter.options.some((option) => option.value === selected)) {
       throw new Error(`请选择有效的“${parameter.label}”`)
