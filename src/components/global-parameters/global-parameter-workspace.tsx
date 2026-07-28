@@ -43,7 +43,7 @@ type ParameterDraft = GlobalParameterInput & { id?: string }
 const kindMeta: Record<GlobalParameterKind, { label: string; description: string; icon: typeof Equal }> = {
   fixed: { label: "固定值", description: "在所有模板中使用同一个值", icon: Equal },
   select: { label: "选项", description: "生成时从预设选项中选择", icon: ListChecks },
-  mapping: { label: "映射", description: "根据另一条选项参数自动取值", icon: Braces },
+  mapping: { label: "映射", description: "根据另一条参数的结果自动取值", icon: Braces },
 }
 
 const valueTypeLabels: Record<GlobalParameterValueType, string> = {
@@ -79,8 +79,43 @@ const parseOptions = (value: string) => value.split("\n").flatMap((line) => {
   return trimmedLabel && optionValue ? [{ label: trimmedLabel, value: optionValue }] : []
 })
 
+const normalize = (value: string) => value.trim().toLocaleLowerCase()
+
 function outputFor(rules: GlobalParameterMappingRule[], sourceValue: string) {
-  return rules.find((rule) => rule.sourceValues.includes(sourceValue))?.output ?? ""
+  const normalized = normalize(sourceValue)
+  return rules.find((rule) => rule.sourceValues.some((value) => normalize(value) === normalized))?.output ?? ""
+}
+
+function mappingSourceOptions(parameter?: ParameterView): GlobalParameterOption[] {
+  if (!parameter) return []
+  if (parameter.kind === "select") return parameter.options
+  if (parameter.kind !== "mapping" || parameter.valueType === "multiline") return []
+
+  const values = [...parameter.mappingRules.map((rule) => rule.output), parameter.fallback]
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const seen = new Set<string>()
+  return values.flatMap((value) => {
+    const normalized = normalize(value)
+    if (seen.has(normalized)) return []
+    seen.add(normalized)
+    return [{ label: value, value }]
+  })
+}
+
+function createsMappingCycle(source: ParameterView, targetKey: string, parameters: ParameterView[]) {
+  if (!targetKey) return false
+  const byKey = new Map(parameters.map((parameter) => [parameter.key, parameter]))
+  const visited = new Set<string>()
+  let current: ParameterView | undefined = source
+  while (current && !visited.has(current.key)) {
+    if (current.key === targetKey) return true
+    visited.add(current.key)
+    current = current.kind === "mapping" && current.sourceParameterKey
+      ? byKey.get(current.sourceParameterKey)
+      : undefined
+  }
+  return false
 }
 
 function ParameterStatus({ parameter, parameters }: { parameter: ParameterView; parameters: ParameterView[] }) {
@@ -88,8 +123,9 @@ function ParameterStatus({ parameter, parameters }: { parameter: ParameterView; 
   if (parameter.kind === "select") return <Badge tone={parameter.options.length ? "success" : "danger"}>{parameter.options.length} 个选项</Badge>
   if (parameter.kind === "fixed") return <Badge tone={parameter.value.trim() ? "success" : "danger"}>{parameter.value.trim() ? "已配置" : "待配置"}</Badge>
   const source = parameters.find((item) => item.key === parameter.sourceParameterKey)
-  const complete = source?.options.filter((option) => outputFor(parameter.mappingRules, option.value).trim()).length ?? 0
-  const total = source?.options.length ?? 0
+  const sourceOptions = mappingSourceOptions(source)
+  const complete = sourceOptions.filter((option) => outputFor(parameter.mappingRules, option.value).trim()).length
+  const total = sourceOptions.length
   return <Badge tone={total > 0 && complete === total ? "success" : "danger"}>{complete} / {total}</Badge>
 }
 
@@ -108,9 +144,15 @@ export function GlobalParameterWorkspace({ parameters }: { parameters: Parameter
     const query = search.trim().toLocaleLowerCase()
     return parameters.filter((parameter) => !query || `${parameter.label} ${parameter.key} ${parameter.description}`.toLocaleLowerCase().includes(query))
   }, [parameters, search])
-  const selectableSources = parameters.filter((parameter) => parameter.kind === "select" && parameter.enabled && parameter.id !== draft.id)
+  const selectableSources = parameters.filter((parameter) => (
+    parameter.enabled
+    && parameter.id !== draft.id
+    && (parameter.kind === "select" || (parameter.kind === "mapping" && parameter.valueType !== "multiline"))
+    && !createsMappingCycle(parameter, draft.key, parameters)
+  ))
   const mappingSource = selectableSources.find((parameter) => parameter.key === draft.sourceParameterKey)
-  const configuredCount = mappingSource?.options.filter((option) => outputFor(draft.mappingRules, option.value).trim()).length ?? 0
+  const sourceOptions = mappingSourceOptions(mappingSource)
+  const configuredCount = sourceOptions.filter((option) => outputFor(draft.mappingRules, option.value).trim()).length
 
   const choose = (parameter: ParameterView) => {
     setSelectedId(parameter.id)
@@ -144,8 +186,9 @@ export function GlobalParameterWorkspace({ parameters }: { parameters: Parameter
   }
 
   const changeMappingOutput = (sourceValue: string, output: string) => setDraft((current) => {
+    const normalized = normalize(sourceValue)
     const nextRules = current.mappingRules
-      .map((rule) => ({ ...rule, sourceValues: rule.sourceValues.filter((value) => value !== sourceValue) }))
+      .map((rule) => ({ ...rule, sourceValues: rule.sourceValues.filter((value) => normalize(value) !== normalized) }))
       .filter((rule) => rule.sourceValues.length)
     if (output) nextRules.push({ sourceValues: [sourceValue], output })
     return { ...current, mappingRules: nextRules }
@@ -264,14 +307,18 @@ export function GlobalParameterWorkspace({ parameters }: { parameters: Parameter
           <div>
             <label className="field-label">映射来源 *</label>
             <AdaptiveSelect
-              options={selectableSources.map((parameter) => ({ value: parameter.key, label: parameter.label, meta: parameter.key }))}
+              options={selectableSources.map((parameter) => ({
+                value: parameter.key,
+                label: parameter.label,
+                meta: `${parameter.key} · ${parameter.kind === "select" ? "选项" : "映射"}`,
+              }))}
               value={draft.sourceParameterKey ?? ""}
               onValueChange={(value) => setDraft({ ...draft, sourceParameterKey: value || null, mappingRules: [] })}
-              placeholder="请选择选项参数"
+              placeholder="请选择来源参数"
               searchPlaceholder="搜索来源参数"
               ariaLabel="映射来源参数"
             />
-            <p className="field-help">来源参数的选项会自动展开，不需要手动重复录入。</p>
+            <p className="field-help">选项值或上一级的单行映射结果会自动展开，可继续组成依赖链。</p>
           </div>
           <div>
             <label className="field-label">输出格式</label>
@@ -285,10 +332,10 @@ export function GlobalParameterWorkspace({ parameters }: { parameters: Parameter
               <h3 className="section-title">对应关系</h3>
               <p className="mb-0 mt-1 text-xs text-[var(--foreground-muted)]">{mappingSource.label} <ArrowRight className="mx-1 inline size-3" /> {draft.label || "当前参数"}</p>
             </div>
-            <Badge tone={configuredCount === mappingSource.options.length ? "success" : "danger"}>已配置 {configuredCount} / {mappingSource.options.length}</Badge>
+            <Badge tone={configuredCount === sourceOptions.length ? "success" : "danger"}>已配置 {configuredCount} / {sourceOptions.length}</Badge>
           </div>
           <div className="divide-y divide-[var(--border)]">
-            {mappingSource.options.map((option) => {
+            {sourceOptions.map((option) => {
               const output = outputFor(draft.mappingRules, option.value)
               return <div key={option.value} className="grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(150px,0.72fr)_24px_minmax(0,1.28fr)] sm:items-center sm:px-5">
                 <div className="min-w-0">
@@ -305,7 +352,7 @@ export function GlobalParameterWorkspace({ parameters }: { parameters: Parameter
         </div> : <div className="rounded-2xl border border-dashed border-[var(--border-strong)] px-6 py-10 text-center">
           <CircleDot className="mx-auto size-6 text-[var(--foreground-muted)]" />
           <p className="mb-0 mt-3 text-sm font-semibold">先选择映射来源</p>
-          <p className="mb-0 mt-1 text-xs text-[var(--foreground-muted)]">选择一条“选项”参数后，这里会自动生成对应关系。</p>
+          <p className="mb-0 mt-1 text-xs text-[var(--foreground-muted)]">选择“选项”或单行“映射”参数后，这里会自动生成对应关系。</p>
         </div>}
 
         <div>
