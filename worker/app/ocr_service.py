@@ -24,6 +24,9 @@ class OcrService:
                 use_doc_orientation_classify=True,
                 use_doc_unwarping=False,
                 use_textline_orientation=True,
+                # PaddlePaddle 3.3.x can fail in the CPU oneDNN/PIR path when
+                # running PaddleOCR 3.x models. Use the standard CPU kernels.
+                enable_mkldnn=False,
             )
         return self._engine
 
