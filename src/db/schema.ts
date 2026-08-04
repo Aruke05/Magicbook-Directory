@@ -78,3 +78,26 @@ export const loginRateLimits = sqliteTable("login_rate_limits", {
   windowStartedAt: integer("window_started_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   blockedUntil: integer("blocked_until", { mode: "timestamp" }),
 })
+
+export const autoReplyRules = sqliteTable("auto_reply_rules", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  source: text("source", { enum: ["text", "image", "both"] }).notNull().default("both"),
+  matchType: text("match_type", { enum: ["contains", "exact", "regex"] }).notNull().default("contains"),
+  keywordMode: text("keyword_mode", { enum: ["any", "all"] }).notNull().default("any"),
+  keywords: text("keywords").notNull().default("[]"),
+  replyText: text("reply_text").notNull(),
+  ignoreCase: integer("ignore_case", { mode: "boolean" }).notNull().default(true),
+  ignoreWhitespace: integer("ignore_whitespace", { mode: "boolean" }).notNull().default(false),
+  ignorePunctuation: integer("ignore_punctuation", { mode: "boolean" }).notNull().default(false),
+  minOcrConfidence: integer("min_ocr_confidence").notNull().default(65),
+  priority: integer("priority").notNull().default(0),
+  cooldownSeconds: integer("cooldown_seconds").notNull().default(10),
+  allowedChatIds: text("allowed_chat_ids").notNull().default(""),
+  stopOnMatch: integer("stop_on_match", { mode: "boolean" }).notNull().default(true),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  ...timestamps,
+}, (table) => [
+  index("auto_reply_rules_enabled_idx").on(table.enabled),
+  index("auto_reply_rules_priority_idx").on(table.priority),
+])
