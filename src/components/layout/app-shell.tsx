@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpenText, Clock3, FileText, LogIn, LogOut, Menu, Plus, Sparkles, X } from "lucide-react"
+import { BookOpenText, Clock3, FileText, LogIn, LogOut, Menu, MessageSquareReply, Plus, Sparkles, X } from "lucide-react"
 import { logoutAction } from "@/actions/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -12,16 +12,20 @@ const navigation = [
   { href: "/", label: "生成提示词", icon: Sparkles },
   { href: "/templates", label: "模板", icon: FileText },
   { href: "/history", label: "生成历史", icon: Clock3 },
+  { href: "/auto-replies", label: "自动回复", icon: MessageSquareReply },
 ]
 
 export function AppShell({ children, isAuthenticated }: { children: React.ReactNode; isAuthenticated: boolean }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const visibleNavigation = isAuthenticated ? navigation : navigation.slice(0, 1)
+  const quickCreate = pathname.startsWith("/auto-replies")
+    ? { href: "/auto-replies/new", label: "新建回复规则" }
+    : { href: "/templates/new", label: "新建模板" }
   return <div className="app-shell">
     <header className="mobile-bar">
       <button className="grid size-10 place-items-center rounded-xl hover:bg-[var(--surface-hover)]" onClick={() => setOpen(true)} aria-label="打开导航"><Menu className="size-5" /></button>
-      <div className="flex items-center gap-2 text-sm font-semibold"><BookOpenText className="size-4 text-[var(--accent)]" /> Magicbook</div>
+      <div className="flex items-center gap-2 text-sm font-semibold"><MessageSquareReply className="size-4 text-[var(--accent)]" /> OCR AutoReply</div>
       <div className="size-10" />
     </header>
     {open && <button className="fixed inset-0 z-20 bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} aria-label="关闭导航遮罩" />}
@@ -29,7 +33,7 @@ export function AppShell({ children, isAuthenticated }: { children: React.ReactN
       <div className="mb-8 flex h-10 items-center justify-between px-2">
         <Link href="/" className="flex items-center gap-2.5 text-[15px] font-bold tracking-[-0.02em]" onClick={() => setOpen(false)}>
           <span className="grid size-8 place-items-center rounded-[10px] bg-[var(--foreground)] text-white"><BookOpenText className="size-4" /></span>
-          Magicbook
+          OCR AutoReply
         </Link>
         <button className="grid size-9 place-items-center rounded-xl hover:bg-[var(--surface-hover)] md:hidden" onClick={() => setOpen(false)} aria-label="关闭导航"><X className="size-4" /></button>
       </div>
@@ -43,7 +47,7 @@ export function AppShell({ children, isAuthenticated }: { children: React.ReactN
         })}
       </nav>
       {isAuthenticated && <div className="mt-5 px-2">
-        <Button asChild size="sm" className="w-full"><Link href="/templates/new"><Plus className="size-3.5" />新建模板</Link></Button>
+        <Button asChild size="sm" className="w-full"><Link href={quickCreate.href}><Plus className="size-3.5" />{quickCreate.label}</Link></Button>
       </div>}
       <div className="mt-auto border-t border-[var(--border)] pt-4">
         {isAuthenticated ? <form action={logoutAction}>

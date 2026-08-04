@@ -7,7 +7,7 @@ import { db } from "@/db/client"
 import { adminSessions } from "@/db/schema"
 import { getEnv } from "@/lib/env"
 
-export const sessionCookieName = "magicbook_session"
+export const sessionCookieName = "ocr_auto_reply_session"
 const cookieMaxAge = 60 * 60 * 24 * 365 * 10
 
 function tokenHash(token: string) {

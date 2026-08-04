@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { BookOpenText, LockKeyhole, Sparkles } from "lucide-react"
+import { LockKeyhole, MessageSquareReply, Sparkles } from "lucide-react"
 import { getSession } from "@/lib/auth/session"
 import { LoginForm } from "@/components/auth/login-form"
 
@@ -13,9 +13,9 @@ export default async function LoginPage() {
     <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(23,105,210,0.09),transparent_64%)]" />
     <section className="relative w-full max-w-[410px]">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-[var(--foreground)] text-white shadow-lg shadow-black/10"><BookOpenText className="size-6" /></div>
+        <div className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-[var(--foreground)] text-white shadow-lg shadow-black/10"><MessageSquareReply className="size-6" /></div>
         <h1 className="m-0 text-[28px] font-bold tracking-[-0.04em]">欢迎回来</h1>
-        <p className="mt-2 text-sm leading-6 text-[var(--foreground-secondary)]">登录 Magicbook，继续整理与生成 AI 提示词。</p>
+        <p className="mt-2 text-sm leading-6 text-[var(--foreground-secondary)]">登录 OCR AutoReply，管理 Telegram 自动回复规则。</p>
       </div>
       <div className="panel p-6 sm:p-7"><LoginForm /></div>
       <div className="mt-5 flex flex-col items-center gap-3">

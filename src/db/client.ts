@@ -5,7 +5,7 @@ import Database from "better-sqlite3"
 import { drizzle } from "drizzle-orm/better-sqlite3"
 import * as schema from "./schema"
 
-const databasePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.DATABASE_PATH ?? "./data/magicbook.db")
+const databasePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.DATABASE_PATH ?? "./data/auto-reply.db")
 fs.mkdirSync(path.dirname(databasePath), { recursive: true })
 
 const globalForDatabase = globalThis as unknown as { sqlite?: Database.Database }

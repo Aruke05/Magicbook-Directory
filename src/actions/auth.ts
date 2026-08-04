@@ -33,7 +33,7 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
 
   clearLoginFailures(limit.hash)
   await createSession(requestHeaders.get("user-agent") ?? "")
-  redirect("/")
+  redirect("/auto-replies")
 }
 
 export async function logoutAction() {

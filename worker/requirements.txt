@@ -1,0 +1,4 @@
+httpx>=0.27,<1
+paddleocr>=3.0,<4
+paddlepaddle>=3.0,<4
+Pillow>=10,<13
