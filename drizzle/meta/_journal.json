@@ -15,6 +15,13 @@
       "when": 1784530641798,
       "tag": "0001_remove-custom-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785833060272,
+      "tag": "0002_spooky_power_pack",
+      "breakpoints": true
     }
   ]
 }

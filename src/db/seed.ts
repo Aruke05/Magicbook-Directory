@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm"
 import { promptCategories, promptTemplates } from "./schema"
 import type { PromptField } from "@/domain/prompts/types"
 
-const databasePath = path.resolve(process.cwd(), process.env.DATABASE_PATH ?? "./data/magicbook.db")
+const databasePath = path.resolve(process.cwd(), process.env.DATABASE_PATH ?? "./data/auto-reply.db")
 fs.mkdirSync(path.dirname(databasePath), { recursive: true })
 const sqlite = new Database(databasePath)
 sqlite.pragma("foreign_keys = ON")
