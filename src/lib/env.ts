@@ -6,6 +6,7 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
   DATABASE_PATH: z.string().min(1).default("./data/magicbook.db"),
+  INTERNAL_API_SECRET: z.string().min(32),
 })
 
 export function getEnv() {
@@ -14,5 +15,6 @@ export function getEnv() {
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     SESSION_SECRET: process.env.SESSION_SECRET,
     DATABASE_PATH: process.env.DATABASE_PATH,
+    INTERNAL_API_SECRET: process.env.INTERNAL_API_SECRET,
   })
 }

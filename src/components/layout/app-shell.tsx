@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpenText, Clock3, FileText, LogIn, LogOut, Menu, Plus, SlidersHorizontal, Sparkles, X } from "lucide-react"
+import { BookOpenText, Clock3, FileText, LogIn, LogOut, Menu, MessageSquareReply, Plus, SlidersHorizontal, Sparkles, X } from "lucide-react"
 import { logoutAction } from "@/actions/auth"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -13,12 +13,16 @@ const navigation = [
   { href: "/templates", label: "模板", icon: FileText },
   { href: "/global-parameters", label: "全局参数", icon: SlidersHorizontal },
   { href: "/history", label: "生成历史", icon: Clock3 },
+  { href: "/auto-replies", label: "自动回复", icon: MessageSquareReply },
 ]
 
 export function AppShell({ children, isAuthenticated }: { children: React.ReactNode; isAuthenticated: boolean }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const visibleNavigation = isAuthenticated ? navigation : navigation.slice(0, 1)
+  const quickCreate = pathname.startsWith("/auto-replies")
+    ? { href: "/auto-replies/new", label: "新建回复规则" }
+    : { href: "/templates/new", label: "新建模板" }
   return <div className="app-shell">
     <header className="mobile-bar">
       <button className="grid size-10 place-items-center rounded-xl hover:bg-[var(--surface-hover)]" onClick={() => setOpen(true)} aria-label="打开导航"><Menu className="size-5" /></button>
@@ -44,7 +48,7 @@ export function AppShell({ children, isAuthenticated }: { children: React.ReactN
         })}
       </nav>
       {isAuthenticated && <div className="mt-5 px-2">
-        <Button asChild size="sm" className="w-full"><Link href="/templates/new"><Plus className="size-3.5" />新建模板</Link></Button>
+        <Button asChild size="sm" className="w-full"><Link href={quickCreate.href}><Plus className="size-3.5" />{quickCreate.label}</Link></Button>
       </div>}
       <div className="mt-auto border-t border-[var(--border)] pt-4">
         {isAuthenticated ? <form action={logoutAction}>
