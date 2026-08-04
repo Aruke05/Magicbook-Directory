@@ -15,6 +15,9 @@ from .rule_engine import chat_is_allowed, matches_rule
 from .rules_client import RulesClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+# httpx logs the full Telegram Bot API URL at INFO level. The bot token is part
+# of that URL, so keep transport logs at WARNING and above.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("telegram-ocr-worker")
 
 
