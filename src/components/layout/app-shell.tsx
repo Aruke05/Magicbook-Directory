@@ -25,7 +25,7 @@ export function AppShell({ children, isAuthenticated }: { children: React.ReactN
   return <div className="app-shell">
     <header className="mobile-bar">
       <button className="grid size-10 place-items-center rounded-xl hover:bg-[var(--surface-hover)]" onClick={() => setOpen(true)} aria-label="打开导航"><Menu className="size-5" /></button>
-      <div className="flex items-center gap-2 text-sm font-semibold"><MessageSquareReply className="size-4 text-[var(--accent)]" /> OCR AutoReply</div>
+      <div className="flex items-center gap-2 text-sm font-semibold"><BookOpenText className="size-4 text-[var(--accent)]" /> Magicbook</div>
       <div className="size-10" />
     </header>
     {open && <button className="fixed inset-0 z-20 bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} aria-label="关闭导航遮罩" />}
@@ -33,7 +33,7 @@ export function AppShell({ children, isAuthenticated }: { children: React.ReactN
       <div className="mb-8 flex h-10 items-center justify-between px-2">
         <Link href="/" className="flex items-center gap-2.5 text-[15px] font-bold tracking-[-0.02em]" onClick={() => setOpen(false)}>
           <span className="grid size-8 place-items-center rounded-[10px] bg-[var(--foreground)] text-white"><BookOpenText className="size-4" /></span>
-          OCR AutoReply
+          Magicbook
         </Link>
         <button className="grid size-9 place-items-center rounded-xl hover:bg-[var(--surface-hover)] md:hidden" onClick={() => setOpen(false)} aria-label="关闭导航"><X className="size-4" /></button>
       </div>
