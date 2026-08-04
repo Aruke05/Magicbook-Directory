@@ -5,7 +5,7 @@ const envSchema = z.object({
   ADMIN_USERNAME: z.string().min(1),
   ADMIN_PASSWORD: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
-  DATABASE_PATH: z.string().min(1).default("./data/auto-reply.db"),
+  DATABASE_PATH: z.string().min(1).default("./data/magicbook.db"),
   INTERNAL_API_SECRET: z.string().min(32),
 })
 
